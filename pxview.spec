@@ -5,7 +5,7 @@ Name:		pxview
 Version:	0.2.3
 Release:	1
 Epoch:		0
-License:	GPL
+License:	GPL v2
 Group:		Applications
 Source0:	http://dl.sourceforge.net/pxlib/%{name}_%{version}.orig.tar.gz
 # Source0-md5:	0b0164588af775dec7f6f6f64d61e270
