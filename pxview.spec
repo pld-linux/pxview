@@ -11,6 +11,8 @@ Source0:	http://dl.sourceforge.net/pxlib/%{name}_%{version}.orig.tar.gz
 # Source0-md5:	0b0164588af775dec7f6f6f64d61e270
 URL:		http://pxlib.sourceforge.net/
 BuildRequires:	pxlib-devel
+BuildRequires:	sqlite-devel
+BuildRequires:	libgsf-devel
 BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
 
 %description
@@ -24,7 +26,9 @@ into SQL or CSV format.
 %setup -q
 
 %build
-%configure
+%configure \
+	--with-sqlite \
+	--with-gsf
 %{__make}
 
 %install
