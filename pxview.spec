@@ -1,16 +1,15 @@
-# TODO:
-# - missing manual files (no docbook-to-man tool)
 Summary:	View Paradox DB files
 Summary(pl):	Narzêdzie do ogl±dania plików baz danych Paradox DB
 Name:		pxview
 Version:	0.2.3
-Release:	1
+Release:	2
 Epoch:		0
 License:	GPL v2
 Group:		Applications
 Source0:	http://dl.sourceforge.net/pxlib/%{name}_%{version}.orig.tar.gz
 # Source0-md5:	0b0164588af775dec7f6f6f64d61e270
 URL:		http://pxlib.sourceforge.net/
+BuildRequires:	docbook-utils
 BuildRequires:	pxlib-devel
 BuildRequires:	sqlite-devel
 BuildRequires:	libgsf-devel
@@ -34,6 +33,13 @@ konwertowania ich do formatu SQL lub CSV.
 %setup -q
 
 %build
+# man pages are build by docbook2man
+sed -i -e 's#docbook-to-man#docbook2man#g' configure*
+sed -i -e 's#docbook-to-man $<.*#docbook2man $<#g' doc/Makefile*
+for man in doc/*.sgml; do
+        name=$(basename "$man" .sgml)
+        sed -i -e "s#$name#$name#gi" $man
+done
 %configure \
 	--with-sqlite \
 	--with-gsf
@@ -54,3 +60,4 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(644,root,root,755)
 %doc AUTHORS ChangeLog
 %attr(755,root,root) %{_bindir}/*
+%{_mandir}/man1/*
