@@ -1,0 +1,746 @@
+diff -urN pxview-0.2.3.org/src/main.c pxview-0.2.3/src/main.c
+--- pxview-0.2.3.org/src/main.c	2004-12-23 10:20:02.000000000 +0100
++++ pxview-0.2.3/src/main.c	2005-04-01 10:50:40.000000000 +0200
+@@ -278,6 +278,19 @@
+ }
+ /* }}} */
+ 
++/* free_sql_types() {{{
++ */
++void free_sql_types(struct sql_type_map *typemap) {
++	int i;
++	for(i=1; i<=pxfBytes; i++) {
++		if(typemap[i].pxtype)
++			free(typemap[i].pxtype);
++		if(typemap[i].sqltype)
++			free(typemap[i].sqltype);
++	}
++}
++/* }}} */
++
+ /* set_sql_type() {{{
+  */
+ void set_sql_type(struct sql_type_map *typemap, int pxtype, char *sqltype) {
+@@ -495,7 +508,9 @@
+ 	pxblob_t *pxblob = NULL;
+ 	char *progname = NULL;
+ 	char *selectedfields = NULL;
+-	char *data, *buffer = NULL;
++	char *data;
++	float frecordsize, ffiletype, fprimarykeyfields, ftheonumrecords;
++	int recordsize, filetype, primarykeyfields, theonumrecords;
+ 	int i, j, c; // general counters
+ 	int first; // used to indicate if output has started or not
+ 	int outputcsv = 0;
+@@ -643,6 +658,10 @@
+ 				break;
+ 			case 11:
+ 				fprintf(stdout, "%s\n", VERSION);
++				if(typemap) {
++					free_sql_types(typemap);
++					free(typemap);
++				}
+ 				exit(0);
+ 				break;
+ 			case 12:
+@@ -675,7 +694,7 @@
+ 				} else {
+ 					fprintf(stderr, _("Argument of --set-sql-type does not contain the delimiting character ':'."));
+ 					fprintf(stderr, "\n");
+-					exit;
++					exit(1);
+ 				}
+ 				break;
+ 			}
+@@ -691,6 +710,10 @@
+ 						printf("%s:%s\n", typemap[i].pxtype, typemap[i].sqltype);
+ 				}
+ 				printf("\n");
++				if(typemap) {
++					free_sql_types(typemap);
++					free(typemap);
++				}
+ 				exit(0);
+ 				break;
+ 			case 'v':
+@@ -752,6 +775,10 @@
+ 		fprintf(stderr, "\n");
+ 		fprintf(stderr, "\n");
+ 		usage(progname);
++		if(typemap) {
++			free_sql_types(typemap);
++			free(typemap);
++		}
+ 		exit(1);
+ 	}
+ 	/* }}} */
+@@ -864,6 +891,9 @@
+ #ifdef HAVE_GSF
+ 	}
+ #endif
++
++	/* Below this point inputfile isn't used anymore. */
++	free(inputfile);
+ 	/* }}} */
+ 
+ 	/* Open primary index file {{{
+@@ -888,13 +918,27 @@
+ 	}
+ 	/* }}} */
+ 
++	/* Set various variables with values from the header. */
+ 	pxh = pxdoc->px_head;
++	PX_get_value(pxdoc, "recordsize", &frecordsize);
++	recordsize = (int) frecordsize;
++	PX_get_value(pxdoc, "filetype", &ffiletype);
++	filetype = (int) ffiletype;
++	PX_get_value(pxdoc, "primarykeyfields", &fprimarykeyfields);
++	primarykeyfields = (int) fprimarykeyfields;
++	PX_get_value(pxdoc, "theonumrecords", &ftheonumrecords);
++	theonumrecords = (int) ftheonumrecords;
++
+ 	if(targetencoding != NULL)
+ 		PX_set_targetencoding(pxdoc, targetencoding);
+ 
+ 	/* Set tablename to the one in the header if it wasn't set before */
+-	if(tablename == NULL)
+-		tablename = pxh->px_tablename;
++	/* FIXME: The memory for tablename must be freed later on, which isn't done yet. */
++	if(tablename == NULL) {
++		PX_get_parameter(pxdoc, "tablename", &tablename);
++		tablename = strdup(tablename);
++//		tablename = pxh->px_tablename;
++	}
+ 	strrep(tablename, '.', '_');
+ 	strrep(tablename, ' ', '_');
+ 
+@@ -922,7 +966,7 @@
+ 		struct tm time_tm;
+ 		fprintf(outfp, _("File Version:            %1.1f\n"), (float) pxh->px_fileversion/10.0);
+ 		fprintf(outfp, _("File Type:               "));
+-		switch(pxh->px_filetype) {
++		switch(filetype) {
+ 			case pxfFileTypIndexDB:
+ 				fprintf(outfp, _("indexed .DB data file"));
+ 				break;
+@@ -953,25 +997,25 @@
+ 		}
+ 		fprintf(outfp, "\n");
+ 		fprintf(outfp, _("Tablename:               %s\n"), pxh->px_tablename);
+-		fprintf(outfp, _("Num. of Records:         %d\n"), pxh->px_numrecords);
+-		fprintf(outfp, _("Theor. Num. of Rec.:     %d\n"), pxh->px_theonumrecords);
+-		fprintf(outfp, _("Num. of Fields:          %d\n"), pxh->px_numfields);
++		fprintf(outfp, _("Num. of Records:         %d\n"), PX_get_num_records(pxdoc));
++		fprintf(outfp, _("Theor. Num. of Rec.:     %d\n"), theonumrecords);
++		fprintf(outfp, _("Num. of Fields:          %d\n"), PX_get_num_fields(pxdoc));
+ 		fprintf(outfp, _("Header size:             %d (0x%X)\n"), pxh->px_headersize, pxh->px_headersize);
+ 		fprintf(outfp, _("Max. Table size:         %d (0x%X)\n"), pxh->px_maxtablesize, pxh->px_maxtablesize*0x400);
+ 		fprintf(outfp, _("Num. of Data Blocks:     %d\n"), pxh->px_fileblocks);
+ 		fprintf(outfp, _("Num. of 1st Data Block:  %d\n"), pxh->px_firstblock);
+ 		fprintf(outfp, _("Num. of last Data Block: %d\n"), pxh->px_lastblock);
+-		if((pxh->px_filetype == pxfFileTypNonIncSecIndex) ||
+-		   (pxh->px_filetype == pxfFileTypIncSecIndex)) {
++		if((filetype == pxfFileTypNonIncSecIndex) ||
++		   (filetype == pxfFileTypIncSecIndex)) {
+ 			fprintf(outfp, _("Num. of Index Field:     %d\n"), pxh->px_indexfieldnumber);
+ 			fprintf(outfp, _("Sort order of Field:     %d\n"), pxh->px_refintegrity);
+ 		}
+-		if((pxh->px_filetype == pxfFileTypIndexDB) ||
+-		   (pxh->px_filetype == pxfFileTypNonIndexDB)) {
+-			fprintf(outfp, _("Num. of prim. Key fields: %d\n"), pxh->px_primarykeyfields);
++		if((filetype == pxfFileTypIndexDB) ||
++		   (filetype == pxfFileTypNonIndexDB)) {
++			fprintf(outfp, _("Num. of prim. Key fields: %d\n"), primarykeyfields);
+ 			fprintf(outfp, _("Next auto inc. value:    %d\n"), pxh->px_autoinc);
+ 		}
+-		if(pxh->px_filetype == pxfFileTypPrimIndex) {
++		if(filetype == pxfFileTypPrimIndex) {
+ 			fprintf(outfp, _("Root index block number: %d\n"), pxh->px_indexroot);
+ 			fprintf(outfp, _("Num. of index levels:    %d\n"), pxh->px_numindexlevels);
+ 		}
+@@ -980,7 +1024,7 @@
+ 		localtime_r((time_t *) &(pxh->px_fileupdatetime), &time_tm);
+ 		fprintf(outfp, _("Update time:             %d.%d.%d %d:%02d:%02d (%d)\n"), time_tm.tm_mday, time_tm.tm_mon+1, time_tm.tm_year+1900, time_tm.tm_hour, time_tm.tm_min, time_tm.tm_sec, pxh->px_fileupdatetime);
+ 		if(verbose) {
+-			fprintf(outfp, _("Record size:             %d (0x%X)\n"), pxh->px_recordsize, pxh->px_recordsize);
++			fprintf(outfp, _("Record size:             %d (0x%X)\n"), recordsize, recordsize);
+ 			fprintf(outfp, _("Sort order:              %d (0x%X)\n"), pxh->px_sortorder, pxh->px_sortorder);
+ 			fprintf(outfp, _("Auto increment:          %d (0x%X)\n"), pxh->px_autoinc, pxh->px_autoinc);
+ 			fprintf(outfp, _("Modified Flags 1:        %d (0x%X)\n"), pxh->px_modifiedflags1, pxh->px_modifiedflags1);
+@@ -990,9 +1034,9 @@
+ 
+ 		fprintf(outfp, _("Fieldname          | Type\n"));
+ 		fprintf(outfp, "------------------------------------\n");
+-		pxf = pxh->px_fields;
++		pxf = PX_get_fields(pxdoc);
+ 		reclen = 0;
+-		for(i=0; i<pxh->px_numfields; i++) {
++		for(i=0; i<PX_get_num_fields(pxdoc); i++) {
+ 			reclen += pxf->px_flen;
+ 			fprintf(outfp, "%18s | ", pxf->px_fname);
+ 			switch(pxf->px_ftype) {
+@@ -1062,8 +1106,8 @@
+ 	if(outputschema) {
+ 		int sumlen = 0;
+ 
+-		if((pxh->px_filetype != pxfFileTypIndexDB) && 
+-		   (pxh->px_filetype != pxfFileTypNonIndexDB)) {
++		if((filetype != pxfFileTypIndexDB) && 
++		   (filetype != pxfFileTypNonIndexDB)) {
+ 			fprintf(stderr, _("Schema output is only reasonable for DB files."));
+ 			fprintf(stderr, "\n");
+ 			PX_close(pxdoc);
+@@ -1075,8 +1119,8 @@
+ 		fprintf(outfp, "Delimiter=%c\n", enclosure);
+ 		fprintf(outfp, "Separator=%c\n", delimiter);
+ 		fprintf(outfp, "CharSet=ANSIINTL\n");
+-		pxf = pxh->px_fields;
+-		for(i=0; i<pxh->px_numfields; i++) {
++		pxf = PX_get_fields(pxdoc);
++		for(i=0; i<PX_get_num_fields(pxdoc); i++) {
+ 			switch(pxf->px_ftype) {
+ 				case pxfAlpha:
+ 				case pxfDate:
+@@ -1153,7 +1197,7 @@
+ 			pxf++;
+ 		}
+ 	}
+-	/* }}} *?
++	/* }}} */
+ 
+ 	/* Check which fields shall be shown in output {{{
+ 	 */
+@@ -1165,13 +1209,13 @@
+ 			exit(1);
+ 		}
+ 		/* allocate memory for selected field array */
+-		if((selectedfields = (char *) pxdoc->malloc(pxdoc, pxh->px_numfields, _("Could not allocate memory for array of selected fields."))) == NULL) {
++		if((selectedfields = (char *) pxdoc->malloc(pxdoc, PX_get_num_fields(pxdoc), _("Could not allocate memory for array of selected fields."))) == NULL) {
+ 			PX_close(pxdoc);
+ 			exit(1);
+ 		}
+-		memset(selectedfields, '\0', pxh->px_numfields);
+-		pxf = pxh->px_fields;
+-		for(i=0; i<pxh->px_numfields; i++) {
++		memset(selectedfields, '\0', PX_get_num_fields(pxdoc));
++		pxf = PX_get_fields(pxdoc);
++		for(i=0; i<PX_get_num_fields(pxdoc); i++) {
+ 			if(0 == regexec(&preg, pxf->px_fname, 0, NULL, 0)) {
+ 				selectedfields[i] = 1;
+ 			}
+@@ -1188,8 +1232,8 @@
+ 		/* Output first line with column names */
+ 		if(!withouthead) {
+ 			first = 0;  // set to 1 when first field has been output
+-			pxf = pxh->px_fields;
+-			for(i=0; i<pxh->px_numfields; i++) {
++			pxf = PX_get_fields(pxdoc);
++			for(i=0; i<PX_get_num_fields(pxdoc); i++) {
+ 				if(fieldregex == NULL || selectedfields[i]) {
+ 					if(first == 1)
+ 						fprintf(outfp, "%c", delimiter);
+@@ -1258,7 +1302,7 @@
+ 				}
+ 				pxf++;
+ 			}
+-			if(pxh->px_filetype == pxfFileTypPrimIndex) {
++			if(filetype == pxfFileTypPrimIndex) {
+ 				fprintf(outfp, "%c", delimiter);
+ 				if(delimiter == ',')
+ 					fprintf(outfp, "%c", enclosure);
+@@ -1295,7 +1339,7 @@
+ 		}
+ 
+ 		/* Allocate memory for record */
+-		if((data = (char *) pxdoc->malloc(pxdoc, pxh->px_recordsize, _("Allocate memory for record."))) == NULL) {
++		if((data = (char *) pxdoc->malloc(pxdoc, recordsize, _("Allocate memory for record."))) == NULL) {
+ 			if(selectedfields)
+ 				pxdoc->free(pxdoc, selectedfields);
+ 			PX_close(pxdoc);
+@@ -1303,10 +1347,10 @@
+ 		}
+ 
+ 		if(outputdeleted) {
+-			numrecords = pxh->px_theonumrecords;
++			numrecords = theonumrecords;
+ 			presetdeleted = 1;
+ 		} else {
+-			numrecords = pxh->px_numrecords;
++			numrecords = PX_get_num_records(pxdoc);
+ 			presetdeleted = 0;
+ 		}
+ 		/* Output records */
+@@ -1315,10 +1359,10 @@
+ 			pxdatablockinfo_t pxdbinfo;
+ 			isdeleted = presetdeleted;
+ 			if(NULL != PX_get_record2(pxdoc, j, data, &isdeleted, &pxdbinfo)) {
+-				pxf = pxh->px_fields;
++				pxf = PX_get_fields(pxdoc);
+ 				offset = 0;
+ 				first = 0;  // set to 1 when first field has been output
+-				for(i=0; i<pxh->px_numfields; i++) {
++				for(i=0; i<PX_get_num_fields(pxdoc); i++) {
+ 					if(fieldregex == NULL || selectedfields[i]) {
+ 						if(first == 1)
+ 							fprintf(outfp, "%c", delimiter);
+@@ -1386,7 +1430,7 @@
+ 							case pxfTime: {
+ 								long value;
+ 								if(0 < PX_get_data_long(pxdoc, &data[offset], pxf->px_flen, &value)) {
+-									fprintf(outfp, "'%02d:%02d:%02.3f'", value/3600000, value/60000%60, value%60000/1000.0);
++									fprintf(outfp, "'%02ld:%02ld:%02.3f'", value/3600000, value/60000%60, value%60000/1000.0);
+ 								}
+ 								first = 1;
+ 								break;
+@@ -1466,13 +1510,14 @@
+ 								break;
+ 							}
+ 							default:
+-								fprintf(outfp, "");
++								break;
++//								fprintf(outfp, "");
+ 						}
+ 					}
+ 					offset += pxf->px_flen;
+ 					pxf++;
+ 				}
+-				if(pxh->px_filetype == pxfFileTypPrimIndex) {
++				if(filetype == pxfFileTypPrimIndex) {
+ 					short int value;
+ 					if(0 < PX_get_data_short(pxdoc, &data[offset], 2, &value)) {
+ 						fprintf(outfp, "%c", delimiter);
+@@ -1502,8 +1547,8 @@
+ 			}
+ 		}
+ 		/* Print sum over all records */
+-		if(pxh->px_filetype == pxfFileTypPrimIndex) {
+-			for(i=0; i<pxh->px_numfields; i++)
++		if(filetype == pxfFileTypPrimIndex) {
++			for(i=0; i<PX_get_num_fields(pxdoc); i++)
+ 				fprintf(outfp, "%c", delimiter);
+ 			fprintf(outfp, "%c", delimiter);
+ 			fprintf(outfp, "%d", ireccounter);
+@@ -1523,15 +1568,15 @@
+ 		struct str_buffer *sbuf;
+ 		char *sqlerror;
+ 
+-		if((pxh->px_filetype != pxfFileTypIndexDB) && 
+-		   (pxh->px_filetype != pxfFileTypNonIndexDB)) {
++		if((filetype != pxfFileTypIndexDB) && 
++		   (filetype != pxfFileTypNonIndexDB)) {
+ 			fprintf(stderr, _("SQL output is only reasonable for DB files."));
+ 			fprintf(stderr, "\n");
+ 			PX_close(pxdoc);
+ 			exit(1);
+ 		}
+ 
+-		if((data = (char *) pxdoc->malloc(pxdoc, pxh->px_recordsize, _("Could not allocate memory for record."))) == NULL) {
++		if((data = (char *) pxdoc->malloc(pxdoc, recordsize, _("Could not allocate memory for record."))) == NULL) {
+ 			if(selectedfields)
+ 				pxdoc->free(pxdoc, selectedfields);
+ 			PX_close(pxdoc);
+@@ -1573,8 +1618,8 @@
+ 			str_buffer_clear(pxdoc, sbuf);
+ 			str_buffer_print(pxdoc, sbuf, "CREATE TABLE %s (\n", tablename);
+ 			first = 0;  // set to 1 when first field has been output
+-			pxf = pxh->px_fields;
+-			for(i=0; i<pxh->px_numfields; i++) {
++			pxf = PX_get_fields(pxdoc);
++			for(i=0; i<PX_get_num_fields(pxdoc); i++) {
+ 				if(fieldregex == NULL ||  selectedfields[i]) {
+ 					strrep(pxf->px_fname, ' ', '_');
+ 					if(first == 1)
+@@ -1610,12 +1655,29 @@
+ 							first = 1;
+ 							break;
+ 					}
+-					if(i < pxh->px_primarykeyfields)
+-						str_buffer_print(pxdoc, sbuf, " unique");
++//					if(i < primarykeyfields)
++//						str_buffer_print(pxdoc, sbuf, " unique");
+ 				}
+ 				pxf++;
+ 			}
++			if(primarykeyfields) {
++				first = 0;  // set to 1 when first field has been output
++				pxf = PX_get_fields(pxdoc);
++				str_buffer_print(pxdoc, sbuf, ",\n  unique(");
++				for(i=0; i<primarykeyfields; i++) {
++					if(fieldregex == NULL ||  selectedfields[i]) {
++						strrep(pxf->px_fname, ' ', '_');
++						if(first == 1)
++							str_buffer_print(pxdoc, sbuf, ",");
++						str_buffer_print(pxdoc, sbuf, "%s", pxf->px_fname);
++						first = 1;
++					}
++					pxf++;
++				}
++				str_buffer_print(pxdoc, sbuf, ")");
++			}
+ 			str_buffer_print(pxdoc, sbuf, ");");
++
+ 			if(SQLITE_OK != sqlite_exec(sql, str_buffer_get(pxdoc, sbuf), NULL, NULL, &sqlerror)) {
+ 				sqlite_close(sql);
+ 				fprintf(stderr, "%s\n", sqlerror);
+@@ -1628,8 +1690,8 @@
+ 			}
+ 
+ 			/* Create the indexes */
+-			pxf = pxh->px_fields;
+-			for(i=0; i<pxh->px_primarykeyfields; i++) {
++			pxf = PX_get_fields(pxdoc);
++			for(i=0; i<primarykeyfields; i++) {
+ 				if(fieldregex == NULL ||  selectedfields[i]) {
+ 					strrep(pxf->px_fname, ' ', '_');
+ 					str_buffer_clear(pxdoc, sbuf);
+@@ -1650,23 +1712,23 @@
+ 		}
+ 
+ 		/* Only output data if we have at least one record */
+-		if(pxh->px_numrecords > 0) {
+-			if((data = (char *) pxdoc->malloc(pxdoc, pxh->px_recordsize, _("Could not allocate memory for record."))) == NULL) {
++		if(PX_get_num_records(pxdoc) > 0) {
++			if((data = (char *) pxdoc->malloc(pxdoc, recordsize, _("Could not allocate memory for record."))) == NULL) {
+ 				if(selectedfields)
+ 					pxdoc->free(pxdoc, selectedfields);
+ 				PX_close(pxdoc);
+ 				exit(1);
+ 			}
+ 
+-			for(j=0; j<pxh->px_numrecords; j++) {
++			for(j=0; j<PX_get_num_records(pxdoc); j++) {
+ 				int offset;
+ 				str_buffer_clear(pxdoc, sbuf);
+ 				str_buffer_print(pxdoc, sbuf, "INSERT INTO %s VALUES (", tablename);
+ 				if(PX_get_record(pxdoc, j, data)) {
+ 					first = 0;  // set to 1 when first field has been output
+ 					offset = 0;
+-					pxf = pxh->px_fields;
+-					for(i=0; i<pxh->px_numfields; i++) {
++					pxf = PX_get_fields(pxdoc);
++					for(i=0; i<PX_get_num_fields(pxdoc); i++) {
+ 						if(fieldregex == NULL ||  selectedfields[i]) {
+ 							if(first == 1)
+ 								str_buffer_print(pxdoc, sbuf, ",");
+@@ -1863,7 +1925,7 @@
+ 		int isdeleted, presetdeleted;
+ 
+ 		/* Allocate memory for record data */
+-		if((data = (char *) pxdoc->malloc(pxdoc, pxh->px_recordsize, _("Could not allocate memory for record."))) == NULL) {
++		if((data = (char *) pxdoc->malloc(pxdoc, recordsize, _("Could not allocate memory for record."))) == NULL) {
+ 			if(selectedfields)
+ 				pxdoc->free(pxdoc, selectedfields);
+ 			PX_close(pxdoc);
+@@ -1871,10 +1933,10 @@
+ 		}
+ 
+ 		if(outputdeleted) {
+-			numrecords = pxh->px_theonumrecords;
++			numrecords = theonumrecords;
+ 			presetdeleted = 1;
+ 		} else {
+-			numrecords = pxh->px_numrecords;
++			numrecords = PX_get_num_records(pxdoc);
+ 			presetdeleted = 0;
+ 		}
+ 
+@@ -1883,8 +1945,8 @@
+ 		fprintf(outfp, " <tr>\n");
+ 
+ 		/* output field name */
+-		pxf = pxh->px_fields;
+-		for(i=0; i<pxh->px_numfields; i++) {
++		pxf = PX_get_fields(pxdoc);
++		for(i=0; i<PX_get_num_fields(pxdoc); i++) {
+ 			if(fieldregex == NULL ||  selectedfields[i]) {
+ 				fprintf(outfp, "  <th>");
+ 				if(strlen(pxf->px_fname))
+@@ -1949,7 +2011,7 @@
+ 			pxf++;
+ 		}
+ 		if(markdeleted) {
+-			fprintf(outfp, "  <th>deleted</th>\n", isdeleted);
++			fprintf(outfp, "  <th>deleted</th>\n");
+ 		}
+ 		fprintf(outfp, " </tr>\n");
+ 
+@@ -1957,10 +2019,10 @@
+ 			int offset;
+ 			isdeleted = presetdeleted;
+ 			if(NULL != PX_get_record2(pxdoc, j, data, &isdeleted, NULL)) {
+-				pxf = pxh->px_fields;
++				pxf = PX_get_fields(pxdoc);
+ 				offset = 0;
+ 				fprintf(outfp, " <tr valign=\"top\">\n");
+-				for(i=0; i<pxh->px_numfields; i++) {
++				for(i=0; i<PX_get_num_fields(pxdoc); i++) {
+ 					if(fieldregex == NULL || selectedfields[i]) {
+ 						fprintf(outfp, "  <td>");
+ 						switch(pxf->px_ftype) {
+@@ -1999,7 +2061,7 @@
+ 							case pxfTime: {
+ 								long value;
+ 								if(0 < PX_get_data_long(pxdoc, &data[offset], pxf->px_flen, &value)) {
+-									fprintf(outfp, "'%02d:%02d:%02.3f'", value/3600000, value/60000%60, value%60000/1000.0);
++									fprintf(outfp, "'%02ld:%02ld:%02.3f'", value/3600000, value/60000%60, value%60000/1000.0);
+ 								}
+ 								break;
+ 							}
+@@ -2078,14 +2140,15 @@
+ 								break;
+ 							}
+ 							default:
+-								fprintf(outfp, "");
++								break;
++//								fprintf(outfp, "");
+ 						}
+ 						fprintf(outfp, "</td>\n");
+ 					}
+ 					offset += pxf->px_flen;
+ 					pxf++;
+ 				}
+-				if(pxh->px_filetype == pxfFileTypPrimIndex) {
++				if(filetype == pxfFileTypPrimIndex) {
+ 					short int value;
+ 					if(0 < PX_get_data_short(pxdoc, &data[offset], 2, &value)) {
+ 						fprintf(outfp, "  <td>%d</td>\n", value);
+@@ -2115,8 +2178,8 @@
+ 	/* Output data as sql statements {{{
+ 	 */
+ 	if(outputsql) {
+-		if((pxh->px_filetype != pxfFileTypIndexDB) && 
+-		   (pxh->px_filetype != pxfFileTypNonIndexDB)) {
++		if((filetype != pxfFileTypIndexDB) && 
++		   (filetype != pxfFileTypNonIndexDB)) {
+ 			fprintf(stderr, _("SQL output is only reasonable for DB files."));
+ 			fprintf(stderr, "\n");
+ 			PX_close(pxdoc);
+@@ -2131,8 +2194,8 @@
+ 		if(!skipschema) {
+ 			fprintf(outfp, "CREATE TABLE %s (\n", tablename);
+ 			first = 0;  // set to 1 when first field has been output
+-			pxf = pxh->px_fields;
+-			for(i=0; i<pxh->px_numfields; i++) {
++			pxf = PX_get_fields(pxdoc);
++			for(i=0; i<PX_get_num_fields(pxdoc); i++) {
+ 				if(fieldregex == NULL ||  selectedfields[i]) {
+ 					strrep(pxf->px_fname, ' ', '_');
+ 					if(first == 1)
+@@ -2164,16 +2227,32 @@
+ 							first = 1;
+ 							break;
+ 					}
+-					if(i < pxh->px_primarykeyfields)
+-						fprintf(outfp, " unique");
++//					if(i < primarykeyfields)
++//						fprintf(outfp, " unique");
+ 				}
+ 				pxf++;
+ 			}
++			if(primarykeyfields) {
++				first = 0;  // set to 1 when first field has been output
++				pxf = PX_get_fields(pxdoc);
++				fprintf(outfp, ",\n  unique(");
++				for(i=0; i<primarykeyfields; i++) {
++					if(fieldregex == NULL ||  selectedfields[i]) {
++						strrep(pxf->px_fname, ' ', '_');
++						if(first == 1)
++							fprintf(outfp, ",");
++						fprintf(outfp, "%s", pxf->px_fname);
++						first = 1;
++					}
++					pxf++;
++				}
++				fprintf(outfp, ")");
++			}
+ 			fprintf(outfp, "\n);\n");
+ 
+ 			/* Create the indexes */
+-			pxf = pxh->px_fields;
+-			for(i=0; i<pxh->px_primarykeyfields; i++) {
++			pxf = PX_get_fields(pxdoc);
++			for(i=0; i<primarykeyfields; i++) {
+ 				if(fieldregex == NULL ||  selectedfields[i]) {
+ 					strrep(pxf->px_fname, ' ', '_');
+ 					fprintf(outfp, "CREATE INDEX %s_%s_index on %s (%s);\n", tablename, pxf->px_fname, tablename, pxf->px_fname);
+@@ -2183,8 +2262,8 @@
+ 		}
+ 
+ 		/* Only output data if we have at least one record */
+-		if(pxh->px_numrecords > 0) {
+-			if((data = (char *) pxdoc->malloc(pxdoc, pxh->px_recordsize, _("Could not allocate memory for record."))) == NULL) {
++		if(PX_get_num_records(pxdoc) > 0) {
++			if((data = (char *) pxdoc->malloc(pxdoc, recordsize, _("Could not allocate memory for record."))) == NULL) {
+ 				if(selectedfields)
+ 					pxdoc->free(pxdoc, selectedfields);
+ 				PX_close(pxdoc);
+@@ -2194,9 +2273,9 @@
+ 			if(usecopy) {
+ 				fprintf(outfp, "COPY %s (", tablename);
+ 				first = 0;  // set to 1 when first field has been output
+-				pxf = pxh->px_fields;
++				pxf = PX_get_fields(pxdoc);
+ 				/* output field name */
+-				for(i=0; i<pxh->px_numfields; i++) {
++				for(i=0; i<PX_get_num_fields(pxdoc); i++) {
+ 					if(fieldregex == NULL ||  selectedfields[i]) {
+ 						if(first == 1)
+ 							fprintf(outfp, ", ");
+@@ -2226,13 +2305,13 @@
+ 					pxf++;
+ 				}
+ 				fprintf(outfp, ") FROM stdin;\n");
+-				for(j=0; j<pxh->px_numrecords; j++) {
++				for(j=0; j<PX_get_num_records(pxdoc); j++) {
+ 					int offset;
+ 					if(PX_get_record(pxdoc, j, data)) {
+ 						first = 0;  // set to 1 when first field has been output
+ 						offset = 0;
+-						pxf = pxh->px_fields;
+-						for(i=0; i<pxh->px_numfields; i++) {
++						pxf = PX_get_fields(pxdoc);
++						for(i=0; i<PX_get_num_fields(pxdoc); i++) {
+ 							if(fieldregex == NULL ||  selectedfields[i]) {
+ 								if(first == 1)
+ 									fprintf(outfp, "\t");
+@@ -2301,7 +2380,7 @@
+ 									case pxfTime: {
+ 										long value;
+ 										if(0 < PX_get_data_long(pxdoc, &data[offset], pxf->px_flen, &value)) {
+-											fprintf(outfp, "%02d:%02d:%02.3f", value/3600000, value/60000%60, value%60000/1000.0);
++											fprintf(outfp, "%02ld:%02ld:%02.3f", value/3600000, value/60000%60, value%60000/1000.0);
+ 										} else {
+ 											fprintf(outfp, "\\N");
+ 										}
+@@ -2390,7 +2469,8 @@
+ 										fprintf(outfp, "\\N");
+ 										break;
+ 									default:
+-										fprintf(outfp, "");
++										break;
++//										fprintf(outfp, "");
+ 								}
+ 							}
+ 							offset += pxf->px_flen;
+@@ -2413,9 +2493,9 @@
+ 					}
+ 					str_buffer_print(pxdoc, sbuf, "(");
+ 					first = 0;  // set to 1 when first field has been output
+-					pxf = pxh->px_fields;
++					pxf = PX_get_fields(pxdoc);
+ 					/* output field name */
+-					for(i=0; i<pxh->px_numfields; i++) {
++					for(i=0; i<PX_get_num_fields(pxdoc); i++) {
+ 						if(fieldregex == NULL ||  selectedfields[i]) {
+ 							if(first == 1)
+ 								str_buffer_print(pxdoc, sbuf, ", ");
+@@ -2446,7 +2526,7 @@
+ 					}
+ 					str_buffer_print(pxdoc, sbuf, ")");
+ 				}
+-				for(j=0; j<pxh->px_numrecords; j++) {
++				for(j=0; j<PX_get_num_records(pxdoc); j++) {
+ 					int offset;
+ 					if(PX_get_record(pxdoc, j, data)) {
+ 						first = 0;  // set to 1 when first field has been output
+@@ -2455,8 +2535,8 @@
+ 							fprintf(outfp, "insert into %s values (", tablename);
+ 						else
+ 							fprintf(outfp, "insert into %s %s values (", tablename, str_buffer_get(pxdoc, sbuf));
+-						pxf = pxh->px_fields;
+-						for(i=0; i<pxh->px_numfields; i++) {
++						pxf = PX_get_fields(pxdoc);
++						for(i=0; i<PX_get_num_fields(pxdoc); i++) {
+ 							if(fieldregex == NULL ||  selectedfields[i]) {
+ 								if(first == 1)
+ 									fprintf(outfp, ", ");
+@@ -2473,9 +2553,9 @@
+ 											pxdoc->free(pxdoc, value);
+ 										} else {
+ 											if(emptystringisnull)
+-												fprintf(outfp, "NULL", value);
++												fprintf(outfp, "NULL");
+ 											else
+-												fprintf(outfp, "''", value);
++												fprintf(outfp, "''");
+ 										}
+ 										first = 1;
+ 
+@@ -2529,7 +2609,7 @@
+ 									case pxfTime: {
+ 										long value;
+ 										if(0 < PX_get_data_long(pxdoc, &data[offset], pxf->px_flen, &value)) {
+-											fprintf(outfp, "'%02d:%02d:%02.3f'", value/3600000, value/60000%60, value%60000/1000.0);
++											fprintf(outfp, "'%02ld:%02ld:%02.3f'", value/3600000, value/60000%60, value%60000/1000.0);
+ 										} else {
+ 											fprintf(outfp, "NULL");
+ 										}
+@@ -2621,7 +2701,8 @@
+ 										first = 1;
+ 										break;
+ 									default:
+-										fprintf(outfp, "");
++										break;
++//										fprintf(outfp, "");
+ 								}
+ 							}
+ 							offset += pxf->px_flen;
+@@ -2645,7 +2726,7 @@
+ 	if(outputdebug) {
+ 		int numrecords;
+ 		int isdeleted, presetdeleted;
+-		if((data = (char *) pxdoc->malloc(pxdoc, pxh->px_recordsize, _("Could not allocate memory for record."))) == NULL) {
++		if((data = (char *) pxdoc->malloc(pxdoc, recordsize, _("Could not allocate memory for record."))) == NULL) {
+ 			if(selectedfields)
+ 				pxdoc->free(pxdoc, selectedfields);
+ 			PX_close(pxdoc);
+@@ -2653,10 +2734,10 @@
+ 		}
+ 
+ 		if(outputdeleted) {
+-			numrecords = pxh->px_theonumrecords;
++			numrecords = theonumrecords;
+ 			presetdeleted = 1;
+ 		} else {
+-			numrecords = pxh->px_numrecords;
++			numrecords = PX_get_num_records(pxdoc);
+ 			presetdeleted = 0;
+ 		}
+ 
+@@ -2678,17 +2759,17 @@
+ 				fprintf(outfp, _("Number of records in block: "));
+ 				fprintf(outfp, "%d\n", pxdbinfo.numrecords);
+ 				fprintf(outfp, _("Block position in file: "));
+-				fprintf(outfp, "%d (0x%X)\n", pxdbinfo.blockpos, pxdbinfo.blockpos);
++				fprintf(outfp, "%ld (0x%X)\n", pxdbinfo.blockpos, (unsigned int) pxdbinfo.blockpos);
+ 				fprintf(outfp, _("Record position in file: "));
+-				fprintf(outfp, "%d (0x%X)\n", pxdbinfo.recordpos, pxdbinfo.recordpos);
++				fprintf(outfp, "%ld (0x%X)\n", pxdbinfo.recordpos, (unsigned int) pxdbinfo.recordpos);
+ 				if(markdeleted) {
+ 					fprintf(outfp, _("Record deleted: "));
+ 					fprintf(outfp, "%d\n", isdeleted);
+ 				}
+-				pxf = pxh->px_fields;
++				pxf = PX_get_fields(pxdoc);
+ 				offset = 0;
+ 				first = 0;  // set to 1 when first field has been output
+-				for(i=0; i<pxh->px_numfields; i++) {
++				for(i=0; i<PX_get_num_fields(pxdoc); i++) {
+ 					if(fieldregex == NULL || selectedfields[i]) {
+ 						fprintf(outfp, "%s: ", pxf->px_fname);
+ 						hex_dump(outfp, &data[offset], pxf->px_flen);
+@@ -2707,7 +2788,13 @@
+ 	/* }}} */
+ 
+ 	/* FIXME: not to free typemap->sqltype */
+-	free(typemap);
++	if(typemap) {
++		free_sql_types(typemap);
++		free(typemap);
++	}
++
++	if(tablename)
++		free(tablename);
+ 
+ 	/* Free resources and close files {{{
+ 	 */
