@@ -11,9 +11,10 @@ Source0:	http://dl.sourceforge.net/pxlib/%{name}_%{version}.orig.tar.gz
 Patch0:		%{name}-cvs.patch
 URL:		http://pxlib.sourceforge.net/
 BuildRequires:	docbook-utils
-BuildRequires:	pxlib-devel
-BuildRequires:	sqlite-devel
 BuildRequires:	libgsf-devel
+BuildRequires:	pxlib-devel
+BuildRequires:	sed >= 4.0
+BuildRequires:	sqlite-devel
 BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
 
 %description
