@@ -1,18 +1,17 @@
 Summary:	View Paradox DB files
 Summary(pl):	Narzêdzie do ogl±dania plików baz danych Paradox DB
 Name:		pxview
-Version:	0.2.3
-Release:	2
+Version:	0.2.5
+Release:	1
 Epoch:		0
 License:	GPL v2
 Group:		Applications
 Source0:	http://dl.sourceforge.net/pxlib/%{name}_%{version}.orig.tar.gz
-# Source0-md5:	0b0164588af775dec7f6f6f64d61e270
-Patch0:		%{name}-cvs.patch
+# Source0-md5:	954dbb0371986d6e27802de8043c6807
 URL:		http://pxlib.sourceforge.net/
 BuildRequires:	docbook-utils
 BuildRequires:	libgsf-devel
-BuildRequires:	pxlib-devel
+BuildRequires:	pxlib-devel >= 0.5.1
 BuildRequires:	sed >= 4.0
 BuildRequires:	sqlite-devel
 BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
@@ -33,7 +32,6 @@ konwertowania ich do formatu SQL lub CSV.
 
 %prep
 %setup -q
-%patch0 -p1
 
 %build
 # man pages are build by docbook2man
