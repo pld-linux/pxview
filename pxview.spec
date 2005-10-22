@@ -2,7 +2,7 @@ Summary:	View Paradox DB files
 Summary(pl):	Narzêdzie do ogl±dania plików baz danych Paradox DB
 Name:		pxview
 Version:	0.2.5
-Release:	2
+Release:	3
 Epoch:		0
 License:	GPL v2
 Group:		Applications
@@ -11,6 +11,7 @@ Source0:	http://dl.sourceforge.net/pxlib/%{name}_%{version}.orig.tar.gz
 URL:		http://pxlib.sourceforge.net/
 BuildRequires:	docbook-utils
 BuildRequires:	libgsf-devel
+BuildRequires:	pkgconfig
 BuildRequires:	pxlib-devel >= 0.5.1
 BuildRequires:	sed >= 4.0
 BuildRequires:	sqlite-devel
@@ -41,6 +42,7 @@ for man in doc/*.sgml; do
         name=$(basename "$man" .sgml)
         sed -i -e "s#$name#$name#gi" $man
 done
+CPPFLAGS="$(pkg-config glib-2.0 --cflags)"
 %configure \
 	--with-sqlite \
 	--with-gsf
