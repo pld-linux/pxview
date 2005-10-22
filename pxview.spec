@@ -2,7 +2,7 @@ Summary:	View Paradox DB files
 Summary(pl):	Narzêdzie do ogl±dania plików baz danych Paradox DB
 Name:		pxview
 Version:	0.2.5
-Release:	1
+Release:	2
 Epoch:		0
 License:	GPL v2
 Group:		Applications
