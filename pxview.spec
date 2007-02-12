@@ -1,5 +1,5 @@
 Summary:	View Paradox DB files
-Summary(pl):	Narzêdzie do ogl±dania plików baz danych Paradox DB
+Summary(pl.UTF-8):   NarzÄ™dzie do oglÄ…dania plikÃ³w baz danych Paradox DB
 Name:		pxview
 Version:	0.2.5
 Release:	3
@@ -24,11 +24,11 @@ During the development pxview has evolved more and more into a useful
 program to examine the contents of Paradox files and to convert them
 into SQL or CSV format.
 
-%description -l pl
-pxview to w miarê ma³y program dzia³aj±cy z linii poleceñ, pocz±tkowo
-stworzony do testowania biblioteki pxlib (s³u¿±cej do odczytu plików
-Paradoksa). Podczas tworzenia pxview coraz bardziej ewoluowa³ staj±c
-siê przydatnym programem do ogl±dania zawarto¶ci plików Paradoksa i
+%description -l pl.UTF-8
+pxview to w miarÄ™ maÅ‚y program dziaÅ‚ajÄ…cy z linii poleceÅ„, poczÄ…tkowo
+stworzony do testowania biblioteki pxlib (sÅ‚uÅ¼Ä…cej do odczytu plikÃ³w
+Paradoksa). Podczas tworzenia pxview coraz bardziej ewoluowaÅ‚ stajÄ…c
+siÄ™ przydatnym programem do oglÄ…dania zawartoÅ›ci plikÃ³w Paradoksa i
 konwertowania ich do formatu SQL lub CSV.
 
 %prep
