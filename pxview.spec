@@ -1,5 +1,5 @@
 Summary:	View Paradox DB files
-Summary(pl.UTF-8):   Narzędzie do oglądania plików baz danych Paradox DB
+Summary(pl.UTF-8):	Narzędzie do oglądania plików baz danych Paradox DB
 Name:		pxview
 Version:	0.2.5
 Release:	3
